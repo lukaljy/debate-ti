@@ -1,9 +1,6 @@
 (() => {
   const data = window.DBTI_DATA;
   const dimensionKeys = data.internalDimensions.map((dimension) => dimension.key);
-  const dimensionLabels = Object.fromEntries(
-    data.internalDimensions.map((dimension) => [dimension.key, dimension.label])
-  );
 
   const likertOptions = [
     ["A", "非常不符合我"],
@@ -12,6 +9,44 @@
     ["D", "比较符合我"],
     ["E", "非常符合我"]
   ].map(([label, text]) => ({ label, text }));
+
+  const teammateWeights = {
+    expression_vs_competition: 0.9,
+    stage_vs_team: 0.75,
+    initiation_tendency: 0.8,
+    pressing_intensity: 0.75,
+    fact_vs_mechanism: 0.8,
+    reality_vs_setting: 0.65,
+    self_vs_judge: 0.7,
+    judge_vs_performance: 0.65,
+    tournament_activity: 0.35,
+    daily_argumentativeness: 0.45,
+    meme_intensity: 0.55,
+    emotional_heat: 0.75,
+    team_construction: 1.1,
+    solo_vs_coordination: 1.1,
+    chain_vs_scene: 0.85,
+    plain_vs_stylized: 0.75
+  };
+
+  const teammatePoleLabels = {
+    expression_vs_competition: ["观点表达", "赢面计算"],
+    stage_vs_team: ["队伍关系", "赛场刺激"],
+    initiation_tendency: ["后手观察", "主动开战"],
+    pressing_intensity: ["克制拆解", "连续压迫"],
+    fact_vs_mechanism: ["机理推演", "事实锚定"],
+    reality_vs_setting: ["抽象设定", "现实议题"],
+    self_vs_judge: ["自我表达", "评委转译"],
+    judge_vs_performance: ["表现信念", "裁判变量"],
+    tournament_activity: ["阶段参与", "高频参赛"],
+    daily_argumentativeness: ["生活切换", "日常论辩"],
+    meme_intensity: ["正经克制", "整活传播"],
+    emotional_heat: ["冷静稳定", "情绪点火"],
+    team_construction: ["局部单点", "整队建构"],
+    solo_vs_coordination: ["单兵突破", "配合补位"],
+    chain_vs_scene: ["逻辑链条", "场景画面"],
+    plain_vs_stylized: ["朴素直给", "包装修辞"]
+  };
 
   const fallbackMode = {
     key: "legacy",
@@ -30,7 +65,8 @@
     result: null,
     questionModes: [],
     questionModeKey: null,
-    questionModeStatus: "loading"
+    questionModeStatus: "loading",
+    activeQuestions: []
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -39,11 +75,7 @@
     startScreen: $("#start-screen"),
     quizScreen: $("#quiz-screen"),
     resultScreen: $("#result-screen"),
-    typesScreen: $("#types-screen"),
-    dimensionsScreen: $("#dimensions-screen"),
     startButton: $("#start-btn"),
-    typesButton: $("#types-btn"),
-    dimensionsButton: $("#dimensions-btn"),
     modeSwitch: $("#mode-switch"),
     modeDesc: $("#mode-desc"),
     nextButton: $("#next-btn"),
@@ -61,19 +93,17 @@
     resultDescription: $("#result-desc"),
     resultMatch: $("#result-match"),
     resultSecondary: $("#result-secondary"),
+    teammateName: $("#teammate-name"),
+    teammateReason: $("#teammate-reason"),
     radarChart: $("#radar-chart"),
     dimensionList: $("#dimension-list"),
-    shareText: $("#share-text"),
-    typeList: $("#type-list"),
-    dimensionLibrary: $("#dimension-library")
+    shareText: $("#share-text")
   };
 
   const screens = [
     elements.startScreen,
     elements.quizScreen,
-    elements.resultScreen,
-    elements.typesScreen,
-    elements.dimensionsScreen
+    elements.resultScreen
   ].filter(Boolean);
 
   function init() {
@@ -84,16 +114,10 @@
     elements.nextButton.addEventListener("click", goNext);
     elements.restartButton.addEventListener("click", restartTest);
     elements.copyButton.addEventListener("click", copyShareText);
-    elements.typesButton.addEventListener("click", () => showScreen("types"));
-    elements.dimensionsButton.addEventListener("click", () => showScreen("dimensions"));
-    document.querySelectorAll("[data-back-home]").forEach((button) => {
-      button.addEventListener("click", () => showScreen("start"));
-    });
     window.addEventListener("resize", () => {
       if (state.result) drawRadarChart(state.result.displayScores);
     });
 
-    renderReferencePages();
     renderModeButtons();
     loadQuestionModes();
   }
@@ -173,6 +197,12 @@
       const scoreMatch = line.match(/^-\s+分数：(.+)$/);
       if (scoreMatch && currentOption) {
         currentOption.effects = parseWeightedScoreLine(scoreMatch[1]);
+        return;
+      }
+
+      const hiddenMatch = line.match(/^-\s+隐藏人格：([a-z_]+)$/);
+      if (hiddenMatch && currentOption) {
+        currentOption.hiddenTypeKey = hiddenMatch[1];
       }
     });
 
@@ -319,6 +349,22 @@
     return state.questionModes.find((mode) => mode.key === state.questionModeKey) || state.questionModes[0] || null;
   }
 
+  function currentQuestions() {
+    const mode = currentMode();
+    return state.activeQuestions.length > 0 ? state.activeQuestions : mode?.questions || [];
+  }
+
+  function shuffleQuestions(questions) {
+    const shuffled = [...questions];
+
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+    }
+
+    return shuffled;
+  }
+
   function showScreen(screenName) {
     const target = elements[`${screenName}Screen`];
     screens.forEach((screen) => {
@@ -334,6 +380,7 @@
     state.answers = {};
     state.selectedOptionIndex = null;
     state.result = null;
+    state.activeQuestions = mode.shuffleOnStart ? shuffleQuestions(mode.questions) : [...mode.questions];
     renderQuestion();
     showScreen("quiz");
   }
@@ -344,7 +391,7 @@
 
   function renderQuestion() {
     const mode = currentMode();
-    const questions = mode.questions;
+    const questions = currentQuestions();
     const question = questions[state.currentQuestionIndex];
     const questionNumber = state.currentQuestionIndex + 1;
     const total = questions.length;
@@ -366,12 +413,11 @@
       const selected = index === state.selectedOptionIndex ? " is-selected" : "";
       return `
         <button class="option-button${selected}" type="button" data-option-index="${index}">
-          <span class="option-label">${escapeHtml(option.label)}</span>
-          <span class="option-content">
-            <span class="option-text">${escapeHtml(option.text)}</span>
-            <span class="score-chips">${renderEffectChips(option.effects, mode)}</span>
-          </span>
-        </button>
+            <span class="option-label">${escapeHtml(option.label)}</span>
+            <span class="option-content">
+              <span class="option-text">${escapeHtml(option.text)}</span>
+            </span>
+          </button>
       `;
     }).join("");
 
@@ -381,8 +427,7 @@
   }
 
   function selectOption(optionIndex) {
-    const mode = currentMode();
-    const question = mode.questions[state.currentQuestionIndex];
+    const question = currentQuestions()[state.currentQuestionIndex];
     state.selectedOptionIndex = optionIndex;
     state.answers[question.id] = optionIndex;
     renderQuestion();
@@ -390,7 +435,7 @@
 
   function goNext() {
     const mode = currentMode();
-    const questions = mode.questions;
+    const questions = currentQuestions();
     if (state.selectedOptionIndex === null) return;
 
     const isLastQuestion = state.currentQuestionIndex === questions.length - 1;
@@ -409,6 +454,22 @@
 
   function computeResult() {
     const mode = currentMode();
+    const hiddenType = findHiddenType();
+    if (hiddenType) {
+      const scores = Object.fromEntries(dimensionKeys.map((key) => [key, 50]));
+      const result = {
+        mode,
+        isHidden: true,
+        scores,
+        touched: Object.fromEntries(dimensionKeys.map((key) => [key, 0])),
+        primary: { ...hiddenType, similarity: 100 },
+        secondary: null,
+        displayScores: computeDisplayScores(scores)
+      };
+      result.teammate = computeTeammate(result);
+      return result;
+    }
+
     const scoringResult = mode.scoring === "likertScale"
       ? computeLikertScores(mode)
       : computeWeightedScores(mode);
@@ -421,7 +482,7 @@
         return b.similarity - a.similarity;
       });
 
-    return {
+    const result = {
       mode,
       scores,
       touched,
@@ -429,13 +490,30 @@
       secondary: matches[1] || null,
       displayScores: computeDisplayScores(scores)
     };
+    result.teammate = computeTeammate(result);
+    return result;
+  }
+
+  function findHiddenType() {
+    for (const question of currentQuestions()) {
+      const selectedIndex = state.answers[question.id];
+      if (selectedIndex === undefined) continue;
+
+      const option = question.options[selectedIndex];
+      const hiddenTypeKey = option?.hiddenTypeKey;
+      if (hiddenTypeKey && data.hiddenPersonalityTypes?.[hiddenTypeKey]) {
+        return data.hiddenPersonalityTypes[hiddenTypeKey];
+      }
+    }
+
+    return null;
   }
 
   function computeWeightedScores(mode) {
     const scores = Object.fromEntries(dimensionKeys.map((key) => [key, 50]));
     const touched = Object.fromEntries(dimensionKeys.map((key) => [key, 0]));
 
-    mode.questions.forEach((question) => {
+    currentQuestions().forEach((question) => {
       const selectedIndex = state.answers[question.id];
       if (selectedIndex === undefined) return;
 
@@ -454,7 +532,7 @@
     const totals = Object.fromEntries(dimensionKeys.map((key) => [key, 0]));
     const touched = Object.fromEntries(dimensionKeys.map((key) => [key, 0]));
 
-    mode.questions.forEach((question) => {
+    currentQuestions().forEach((question) => {
       const selectedIndex = state.answers[question.id];
       if (selectedIndex === undefined) return;
 
@@ -516,9 +594,111 @@
     return displayScores;
   }
 
+  function computeTeammate(result) {
+    const primaryCode = result.primary?.code;
+    const candidates = (data.personalityTypes || [])
+      .filter((type) => type.code !== primaryCode);
+
+    if (candidates.length === 0) return null;
+
+    const sourceProfile = result.isHidden
+      ? result.primary.profile
+      : result.scores;
+
+    const ranked = candidates
+      .map((type) => {
+        let distance = 0;
+        let weightTotal = 0;
+
+        dimensionKeys.forEach((key) => {
+          const sourceValue = sourceProfile[key] ?? 50;
+          const candidateValue = type.profile[key] ?? 50;
+          const idealValue = getIdealTeammateValue(key, sourceValue);
+          const weight = teammateWeights[key] ?? 0.5;
+
+          distance += Math.abs(candidateValue - idealValue) * weight;
+          weightTotal += 100 * weight;
+        });
+
+        const fit = Math.max(0, Math.round((1 - distance / weightTotal) * 100));
+        return { ...type, teammateDistance: distance, teammateFit: fit };
+      })
+      .sort((a, b) => {
+        if (a.teammateDistance !== b.teammateDistance) return a.teammateDistance - b.teammateDistance;
+        return b.teammateFit - a.teammateFit;
+      });
+
+    const type = ranked[0];
+    return {
+      type,
+      fit: type.teammateFit,
+      reason: buildTeammateReason(sourceProfile, type)
+    };
+  }
+
+  function getIdealTeammateValue(key, sourceValue) {
+    if (key === "team_construction") return sourceValue < 55 ? 82 : clamp(100 - sourceValue, 35, 82);
+    if (key === "solo_vs_coordination") return sourceValue < 55 ? 84 : clamp(100 - sourceValue, 40, 84);
+    if (key === "tournament_activity") return sourceValue < 45 ? 62 : sourceValue;
+    if (key === "daily_argumentativeness") return clamp(100 - sourceValue, 35, 80);
+    if (key === "emotional_heat") return clamp(100 - sourceValue, 22, 78);
+
+    return clamp(100 - sourceValue, 8, 92);
+  }
+
+  function buildTeammateReason(sourceProfile, teammate) {
+    const strongest = pickStrongestTrait(sourceProfile);
+    const balancing = pickBalancingTrait(sourceProfile, teammate.profile);
+
+    return `你更突出的倾向是「${getPoleLabel(strongest.key, strongest.value)}」，${teammate.name}能补上「${getPoleLabel(balancing.key, teammate.profile[balancing.key] ?? 50)}」。你负责把自己的强项打满，TA负责把另一侧兜住，组合起来不容易偏科。`;
+  }
+
+  function pickStrongestTrait(profile) {
+    return dimensionKeys
+      .map((key) => {
+        const value = profile[key] ?? 50;
+        return {
+          key,
+          value,
+          strength: Math.abs(value - 50) * (teammateWeights[key] ?? 0.5)
+        };
+      })
+      .sort((a, b) => b.strength - a.strength)[0] || { key: dimensionKeys[0], value: 50 };
+  }
+
+  function pickBalancingTrait(sourceProfile, teammateProfile) {
+    return dimensionKeys
+      .map((key) => {
+        const sourceValue = sourceProfile[key] ?? 50;
+        const teammateValue = teammateProfile[key] ?? 50;
+        const sourceDelta = sourceValue - 50;
+        const teammateDelta = teammateValue - 50;
+        const opposite = sourceDelta * teammateDelta < 0;
+        const distance = Math.abs(sourceValue - teammateValue);
+        const weight = teammateWeights[key] ?? 0.5;
+
+        return {
+          key,
+          value: teammateValue,
+          opposite,
+          strength: Math.abs(sourceDelta) * distance * weight
+        };
+      })
+      .sort((a, b) => {
+        if (a.opposite !== b.opposite) return a.opposite ? -1 : 1;
+        return b.strength - a.strength;
+      })[0] || { key: dimensionKeys[0], value: 50 };
+  }
+
+  function getPoleLabel(key, value) {
+    const labels = teammatePoleLabels[key] || ["这一侧", "另一侧"];
+    return value >= 50 ? labels[1] : labels[0];
+  }
+
   function renderResult(result) {
     const primary = result.primary;
     const secondary = result.secondary;
+    const teammate = result.teammate;
     const description = primary.copy.normal;
     const shareText = primary.share.normal;
 
@@ -526,10 +706,16 @@
     elements.resultName.textContent = primary.name;
     elements.resultTagline.textContent = primary.tagline;
     elements.resultDescription.textContent = description;
-    elements.resultMatch.textContent = `${primary.similarity}%`;
-    elements.resultSecondary.textContent = secondary
+    elements.resultMatch.textContent = result.isHidden ? "隐藏" : `${primary.similarity}%`;
+    elements.resultSecondary.textContent = result.isHidden
+      ? `测试模式：${result.mode.label}｜隐藏人格触发`
+      : secondary
       ? `测试模式：${result.mode.label}｜相似人格：${secondary.name} · ${secondary.similarity}%`
       : `测试模式：${result.mode.label}`;
+    elements.teammateName.textContent = teammate ? teammate.type.name : "暂未生成";
+    elements.teammateReason.textContent = teammate
+      ? `${teammate.reason} 推荐指数：${teammate.fit}%`
+      : "当前结果不足以稳定推荐队友。";
     elements.shareText.textContent = shareText;
     elements.copyButton.textContent = "复制分享文案";
 
@@ -541,20 +727,6 @@
           <strong>${score}</strong>
         </div>
       `;
-    }).join("");
-  }
-
-  function renderEffectChips(effects, mode) {
-    const displayEffects = mode.scoring === "likertScale" ? effects : expandEffects(effects);
-
-    return Object.entries(displayEffects || {}).filter(([key]) => dimensionKeys.includes(key)).map(([key, value]) => {
-      if (mode.scoring === "likertScale") {
-        return `<span class="score-chip is-neutral">${escapeHtml(dimensionLabels[key] || key)} ${Math.round(value)}分</span>`;
-      }
-
-      const className = value >= 0 ? "score-chip is-positive" : "score-chip is-negative";
-      const sign = value >= 0 ? "+" : "";
-      return `<span class="${className}">${escapeHtml(dimensionLabels[key] || key)} ${sign}${value}</span>`;
     }).join("");
   }
 
@@ -574,80 +746,6 @@
         .map(([key, value]) => [key, Math.round(value)])
         .filter(([, value]) => value !== 0)
     );
-  }
-
-  function renderReferencePages() {
-    renderTypeLibrary();
-    renderDimensionLibrary();
-  }
-
-  function renderTypeLibrary() {
-    if (!elements.typeList) return;
-
-    elements.typeList.innerHTML = data.personalityTypes.map((type, index) => {
-      const chips = Object.entries(type.profile)
-        .filter(([key]) => dimensionKeys.includes(key))
-        .sort((a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50))
-        .slice(0, 6)
-        .map(([key, value]) => `<span class="profile-chip">${escapeHtml(dimensionLabels[key] || key)} ${Math.round(value)}</span>`)
-        .join("");
-
-      return `
-        <article class="type-card">
-          <div class="card-kicker">${String(index + 1).padStart(2, "0")} · ${escapeHtml(type.code)}</div>
-          <h3>${escapeHtml(type.name)}</h3>
-          <p class="card-tagline">${escapeHtml(type.tagline)}</p>
-          <div class="profile-chips">${chips}</div>
-        </article>
-      `;
-    }).join("");
-  }
-
-  function renderDimensionLibrary() {
-    if (!elements.dimensionLibrary) return;
-
-    const internalCards = data.internalDimensions.map((dimension) => {
-      const detail = data.dimensionDetails?.[dimension.key] || {};
-      return `
-        <article class="dimension-card">
-          <div class="card-kicker">${escapeHtml(dimension.key)}</div>
-          <h3>${escapeHtml(dimension.label)}</h3>
-          <p><strong>高分：</strong>${escapeHtml(detail.high || "更靠近该维度高分端。")}</p>
-          <p><strong>低分：</strong>${escapeHtml(detail.low || "更靠近该维度低分端。")}</p>
-        </article>
-      `;
-    }).join("");
-
-    const displayCards = data.displayDimensions.map((dimension) => `
-      <article class="dimension-card">
-        <div class="card-kicker">${escapeHtml(dimension.key)}</div>
-        <h3>${escapeHtml(dimension.label)}</h3>
-        <p><strong>合成：</strong>${escapeHtml(describeDisplayFormula(dimension))}</p>
-        <p>结果页雷达图展示该合成维度，底层匹配仍使用 16 个维度。</p>
-      </article>
-    `).join("");
-
-    elements.dimensionLibrary.innerHTML = `
-      <section class="dimension-section">
-        <h3>16 个底层维度</h3>
-        <div class="dimension-grid-large">${internalCards}</div>
-      </section>
-      <section class="dimension-section">
-        <h3>8 个展示维度</h3>
-        <div class="dimension-grid-large">${displayCards}</div>
-      </section>
-    `;
-  }
-
-  function describeDisplayFormula(dimension) {
-    const primaryLabel = dimensionLabels[dimension.primary] || dimension.primary;
-    const secondaryLabel = dimensionLabels[dimension.secondary] || dimension.secondary;
-
-    if (dimension.key === "competitive_orientation") {
-      return `min(${primaryLabel}, ${secondaryLabel}) * 0.7 + 平均值 * 0.3`;
-    }
-
-    return `${primaryLabel} 与 ${secondaryLabel} 简单平均`;
   }
 
   function drawRadarChart(displayScores) {

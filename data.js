@@ -51,9 +51,9 @@
   const questionModeSources = [
     {
       key: "profile35",
-      label: "35题人格题",
-      badge: "35 QUESTIONS",
-      description: "四选一情境题，直接按选项给多个底层维度加减分，更适合快速试玩人格结果。",
+      label: "37题人格题",
+      badge: "37 QUESTIONS",
+      description: "四选一情境题，直接按选项给多个底层维度加减分，更适合快速体验人格结果。",
       file: "问题文档.md",
       parser: "weightedOptions"
     },
@@ -61,9 +61,10 @@
       key: "scale80",
       label: "80题量表题",
       badge: "80 QUESTIONS",
-      description: "五级量表题，每个底层维度 5 题，按正反向均分换算为 0-100，更适合精细调试维度。",
+      description: "五级量表题，每个底层维度 5 题，按正反向均分换算为 0-100，更适合精细查看维度。",
       file: "问题文档-80题.md",
-      parser: "likertScale"
+      parser: "likertScale",
+      shuffleOnStart: true
     }
   ];
 
@@ -1181,10 +1182,32 @@
     })
   ];
 
+  const hiddenPersonalityTypes = {
+    pure_atmosphere: makeType({
+      code: "PURE-VIBE",
+      name: "纯粹气氛组",
+      tagline: "你来辩论不是为了成为传奇，你是为了让这群人今晚别散。",
+      profile: {
+        expression_vs_competition: 18,
+        stage_vs_team: 8,
+        tournament_activity: 42,
+        daily_argumentativeness: 66,
+        meme_intensity: 82,
+        emotional_heat: 28,
+        team_construction: 70,
+        solo_vs_coordination: 88,
+        plain_vs_stylized: 72
+      },
+      description: `你是隐藏人格里的纯粹气氛组。对你来说，辩论当然可以有输赢、有佳辩、有漂亮表达，但真正让你觉得“这趟值了”的，经常是赛后那一桌还没聊完的话、海底捞门口突然续上的局、KTV 里莫名其妙一起唱到天亮的队友。
+
+你不一定最执着于赛场上的个人高光，也不一定最想把每一轮都算成战绩。你更像一支队伍里的温度维持系统：比赛可以结束，但关系、乐子和共同记忆不能就这么结束。别人把辩论理解成一场一场的胜负，你会更自然地把它理解成一群人因为某种共同兴奋而聚在一起。你不是不认真，你只是很清楚，很多时候让人一直留在辩论里的，未必是奖杯，而是“打完以后我们还想一起去吃点什么”。`
+    })
+  };
+
   window.DBTI_DATA = {
     config: {
-      demoMode: true,
-      assetVersion: "20260413-question-modes",
+      demoMode: false,
+      assetVersion: "20260416-teammate",
       fallbackThreshold: 60
     },
     internalDimensions,
@@ -1194,6 +1217,7 @@
     dimensionDetails,
     questions,
     personalityTypes,
+    hiddenPersonalityTypes,
     fallbackType: {
       code: "DEADLOCK",
       name: "流局人格",

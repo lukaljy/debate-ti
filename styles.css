@@ -77,15 +77,9 @@ button {
   animation: screen-in 420ms ease both;
 }
 
-.screen-library {
-  align-items: flex-start;
-  padding: 24px 0;
-}
-
 .hero-panel,
 .quiz-card,
-.result-card,
-.library-card {
+.result-card {
   width: min(100%, 980px);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -304,8 +298,7 @@ h2 {
 }
 
 .quiz-card,
-.result-card,
-.library-card {
+.result-card {
   padding: clamp(22px, 5vw, 46px);
 }
 
@@ -360,6 +353,7 @@ h2 {
   border-radius: 22px;
   padding: 18px;
   color: var(--paper);
+  font-weight: 600;
   text-align: left;
   background: rgba(244, 234, 215, 0.07);
   cursor: pointer;
@@ -381,6 +375,7 @@ h2 {
   border-radius: 50%;
   color: var(--ink);
   font-family: var(--font-display);
+  font-weight: 700;
   background: var(--paper);
 }
 
@@ -390,40 +385,16 @@ h2 {
 
 .option-text {
   align-self: center;
+  color: rgba(244, 234, 215, 0.96);
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   line-height: 1.75;
 }
 
 .option-content {
   display: grid;
   gap: 10px;
-}
-
-.score-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.score-chip {
-  border: 1px solid rgba(244, 234, 215, 0.16);
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-family: var(--font-display);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.score-chip.is-positive {
-  color: #ffe77a;
-}
-
-.score-chip.is-negative {
-  color: #ffb0a6;
-}
-
-.score-chip.is-neutral {
-  color: rgba(244, 234, 215, 0.82);
 }
 
 .quiz-footer {
@@ -500,6 +471,35 @@ h2 {
   color: rgba(244, 234, 215, 0.72);
 }
 
+.teammate-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  border: 1px solid rgba(255, 231, 122, 0.24);
+  border-radius: 20px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 231, 122, 0.12), rgba(47, 109, 246, 0.08)),
+    rgba(0, 0, 0, 0.14);
+}
+
+.teammate-box span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.teammate-box strong {
+  color: var(--yellow);
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.04em;
+}
+
+.teammate-box small {
+  color: rgba(244, 234, 215, 0.8);
+  line-height: 1.75;
+}
+
 #radar-chart {
   display: block;
   width: 100%;
@@ -567,85 +567,6 @@ h2 {
   background: transparent;
 }
 
-.library-header {
-  display: flex;
-  gap: 18px;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-
-.library-list,
-.dimension-library {
-  display: grid;
-  gap: 18px;
-}
-
-.type-card,
-.dimension-card {
-  border: 1px solid rgba(244, 234, 215, 0.16);
-  border-radius: 22px;
-  padding: clamp(18px, 3vw, 26px);
-  background: rgba(244, 234, 215, 0.07);
-}
-
-.type-card h3,
-.dimension-card h3,
-.dimension-section h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(22px, 3vw, 34px);
-  letter-spacing: 0.04em;
-}
-
-.card-kicker {
-  margin-bottom: 10px;
-  color: var(--yellow);
-  font-family: var(--font-display);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.card-tagline,
-.dimension-card p {
-  color: rgba(244, 234, 215, 0.82);
-  line-height: 1.75;
-}
-
-.card-tagline {
-  margin: 12px 0 0;
-  color: var(--yellow);
-}
-
-.profile-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0;
-}
-
-.profile-chip {
-  border: 1px solid rgba(255, 231, 122, 0.28);
-  border-radius: 999px;
-  padding: 6px 10px;
-  color: rgba(255, 231, 122, 0.92);
-  font-family: var(--font-display);
-  font-size: 12px;
-  background: rgba(255, 231, 122, 0.06);
-}
-
-.dimension-section {
-  display: grid;
-  gap: 16px;
-}
-
-.dimension-grid-large {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
 @keyframes screen-in {
   from {
     opacity: 0;
@@ -668,8 +589,7 @@ h2 {
   }
 
   .hero-stats,
-  .result-layout,
-  .dimension-grid-large {
+  .result-layout {
     grid-template-columns: 1fr;
   }
 
@@ -679,8 +599,7 @@ h2 {
 
   .quiz-header,
   .quiz-footer,
-  .share-panel,
-  .library-header {
+  .share-panel {
     align-items: stretch;
     flex-direction: column;
   }

@@ -3,30 +3,30 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="DBTI 华语辩论人格测试 Demo，测出你的辩论人格。">
+    <meta name="description" content="DBTI 华语辩论人格测试，测出你的辩论人格。">
     <title>DBTI 华语辩论人格测试</title>
-    <link rel="stylesheet" href="styles.css?v=20260414-short-type-library">
-    <script defer src="data.js?v=20260414-short-type-library"></script>
-    <script defer src="app.js?v=20260414-short-type-library"></script>
+    <link rel="stylesheet" href="styles.css?v=20260416-teammate">
+    <script defer src="data.js?v=20260416-teammate"></script>
+    <script defer src="app.js?v=20260416-teammate"></script>
   </head>
   <body>
     <main class="app-shell">
       <section class="screen screen-start is-active" id="start-screen" aria-labelledby="start-title">
         <div class="hero-panel">
           <div class="status-strip">
-            <span>DBTI DEMO</span>
-            <span>35 / 80 QUESTIONS</span>
+            <span>DBTI</span>
+            <span>37 / 80 QUESTIONS</span>
             <span>16-DIM ENGINE</span>
           </div>
           <p class="eyebrow">华语辩论人格测试</p>
           <h1 id="start-title">你在赛场上到底是什么东西？</h1>
           <p class="hero-copy">
-            这是 DBTI 的可试玩 Demo。当前提供 35 题人格题和 80 题量表题两种调试模式，用于对照题库、计分和人格结果。
+            当前提供 37 题人格题和 80 题量表题两种测试模式，用于测出你的华语辩论人格。
           </p>
           <div class="hero-stats" aria-label="测试规格">
             <div><strong>16</strong><span>内部维度</span></div>
             <div><strong>8</strong><span>展示维度</span></div>
-            <div><strong>27</strong><span>常规人格</span></div>
+            <div><strong>27+1</strong><span>人格结果</span></div>
           </div>
           <div class="mode-panel" aria-label="题库模式">
             <div class="section-label">题库模式</div>
@@ -35,8 +35,6 @@
           </div>
           <div class="hero-actions">
             <button class="primary-button" id="start-btn" type="button">进入赛场</button>
-            <button class="secondary-button" id="types-btn" type="button">查看人格图鉴</button>
-            <button class="ghost-button" id="dimensions-btn" type="button">查看维度说明</button>
           </div>
         </div>
       </section>
@@ -76,6 +74,11 @@
                 <strong id="result-match">--%</strong>
                 <small id="result-secondary"></small>
               </div>
+              <div class="teammate-box" aria-label="你最适合的队友">
+                <span>你最适合的队友</span>
+                <strong id="teammate-name">--</strong>
+                <small id="teammate-reason"></small>
+              </div>
             </section>
             <section class="radar-panel" aria-labelledby="radar-title">
               <div class="section-label" id="radar-title">8 维赛场画像</div>
@@ -96,31 +99,6 @@
         </article>
       </section>
 
-      <section class="screen screen-library" id="types-screen" aria-labelledby="types-title">
-        <article class="library-card">
-          <header class="library-header">
-            <div>
-              <p class="eyebrow">人格图鉴</p>
-              <h2 id="types-title">27 种常规人格</h2>
-            </div>
-            <button class="ghost-button" type="button" data-back-home>返回首页</button>
-          </header>
-          <div class="library-list" id="type-list"></div>
-        </article>
-      </section>
-
-      <section class="screen screen-library" id="dimensions-screen" aria-labelledby="dimensions-title">
-        <article class="library-card">
-          <header class="library-header">
-            <div>
-              <p class="eyebrow">维度说明</p>
-              <h2 id="dimensions-title">测试维度总览</h2>
-            </div>
-            <button class="ghost-button" type="button" data-back-home>返回首页</button>
-          </header>
-          <div class="dimension-library" id="dimension-library"></div>
-        </article>
-      </section>
     </main>
   </body>
 </html>
