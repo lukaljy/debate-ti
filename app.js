@@ -66,7 +66,11 @@
     questionModes: [],
     questionModeKey: null,
     questionModeStatus: "loading",
-    activeQuestions: []
+    activeQuestions: [],
+    shareImageBlob: null,
+    shareImageDataUrl: "",
+    shareImageUrl: null,
+    shareImageName: "dbti-result.png"
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -81,6 +85,12 @@
     nextButton: $("#next-btn"),
     restartButton: $("#restart-btn"),
     copyButton: $("#copy-btn"),
+    imageButton: $("#image-btn"),
+    shareImageOverlay: $("#share-image-overlay"),
+    shareImageClose: $("#share-image-close"),
+    shareImagePreview: $("#share-image-preview"),
+    downloadImageLink: $("#download-image-link"),
+    systemShareButton: $("#system-share-btn"),
     questionTitle: $("#question-title"),
     questionText: $("#question-text"),
     optionList: $("#option-list"),
@@ -114,6 +124,16 @@
     elements.nextButton.addEventListener("click", goNext);
     elements.restartButton.addEventListener("click", restartTest);
     elements.copyButton.addEventListener("click", copyShareText);
+    elements.imageButton.addEventListener("click", openShareImageDialog);
+    elements.shareImageClose.addEventListener("click", closeShareImageDialog);
+    elements.downloadImageLink.addEventListener("click", handleDownloadImageClick);
+    elements.systemShareButton.addEventListener("click", shareGeneratedImage);
+    elements.shareImageOverlay.addEventListener("click", (event) => {
+      if (event.target === elements.shareImageOverlay) closeShareImageDialog();
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !elements.shareImageOverlay.hidden) closeShareImageDialog();
+    });
     window.addEventListener("resize", () => {
       if (state.result) drawRadarChart(state.result.displayScores);
     });
@@ -840,12 +860,488 @@
     });
   }
 
-  function getRadarPoint(index, total, center, radius) {
+  function getRadarPoint(index, total, center, radius, centerY = center) {
     const angle = -Math.PI / 2 + (Math.PI * 2 * index) / total;
     return {
       x: center + Math.cos(angle) * radius,
-      y: center + Math.sin(angle) * radius
+      y: centerY + Math.sin(angle) * radius
     };
+  }
+
+  async function openShareImageDialog() {
+    if (!state.result) return;
+
+    elements.imageButton.disabled = true;
+    elements.imageButton.textContent = "生成中";
+
+    try {
+      const image = await createShareImage(state.result);
+      setShareImageData(image, state.result);
+      elements.shareImageOverlay.hidden = false;
+      document.body.classList.add("is-dialog-open");
+    } catch (error) {
+      console.warn("[DBTI] 结果图生成失败：", error);
+      elements.imageButton.textContent = "生成失败";
+      window.setTimeout(() => {
+        elements.imageButton.textContent = "生成结果图";
+      }, 1200);
+      return;
+    } finally {
+      elements.imageButton.disabled = false;
+      if (elements.imageButton.textContent !== "生成失败") {
+        elements.imageButton.textContent = "生成结果图";
+      }
+    }
+  }
+
+  function closeShareImageDialog() {
+    elements.shareImageOverlay.hidden = true;
+    document.body.classList.remove("is-dialog-open");
+  }
+
+  function setShareImageData(image, result) {
+    if (state.shareImageUrl) URL.revokeObjectURL(state.shareImageUrl);
+
+    const fileName = `DBTI-${sanitizeFileName(result.primary.name)}.png`;
+    const blob = image.blob || dataUrlToBlob(image.dataUrl);
+    const imageUrl = URL.createObjectURL(blob);
+    const isWechat = isWeChatBrowser();
+
+    state.shareImageBlob = blob;
+    state.shareImageDataUrl = image.dataUrl;
+    state.shareImageUrl = imageUrl;
+    state.shareImageName = fileName;
+    elements.shareImagePreview.src = image.dataUrl;
+    elements.downloadImageLink.href = isWechat ? image.dataUrl : imageUrl;
+    elements.downloadImageLink.download = fileName;
+    elements.downloadImageLink.textContent = isWechat ? "长按上方图片保存" : "保存图片";
+
+    const canShare = canShareGeneratedImage();
+    elements.systemShareButton.disabled = !canShare;
+    elements.systemShareButton.textContent = canShare
+      ? "系统分享图片"
+      : isWechat
+      ? "微信内长按保存"
+      : "长按图片保存";
+  }
+
+  function handleDownloadImageClick(event) {
+    if (!isWeChatBrowser()) return;
+
+    event.preventDefault();
+    elements.downloadImageLink.textContent = "请长按图片保存";
+    elements.shareImagePreview.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  async function shareGeneratedImage() {
+    const file = makeShareImageFile();
+    if (!file || !navigator.share || !canShareGeneratedImage()) {
+      elements.systemShareButton.textContent = "请长按图片保存";
+      return;
+    }
+
+    const result = state.result;
+    const teammateName = result?.teammate?.type?.name;
+    const text = teammateName
+      ? `我的 DBTI 是${result.primary.name}，最适合的队友是${teammateName}。`
+      : elements.shareText.textContent.trim();
+
+    try {
+      await navigator.share({
+        files: [file],
+        title: "我的 DBTI 华语辩论人格测试结果",
+        text
+      });
+      elements.systemShareButton.textContent = "已打开分享";
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        elements.systemShareButton.textContent = "分享失败";
+      }
+    }
+  }
+
+  function canShareGeneratedImage() {
+    const file = makeShareImageFile();
+    if (!file || !navigator.canShare) return false;
+
+    try {
+      return navigator.canShare({ files: [file] });
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function makeShareImageFile() {
+    if (!state.shareImageBlob || typeof File === "undefined") return null;
+    try {
+      return new File([state.shareImageBlob], state.shareImageName, { type: "image/png" });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function createShareImage(result) {
+    const canvas = createShareImageCanvas(result);
+    const dataUrl = canvas.toDataURL("image/png", 0.94);
+
+    if (!canvas.toBlob) {
+      return Promise.resolve({ blob: dataUrlToBlob(dataUrl), dataUrl });
+    }
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve({ blob, dataUrl });
+        else resolve({ blob: dataUrlToBlob(dataUrl), dataUrl });
+      }, "image/png", 0.94);
+    });
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const [meta, content] = dataUrl.split(",");
+    const mimeMatch = meta.match(/data:(.*?);base64/);
+    const mime = mimeMatch?.[1] || "image/png";
+    const binary = atob(content);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new Blob([bytes], { type: mime });
+  }
+
+  function isWeChatBrowser() {
+    return /MicroMessenger/i.test(navigator.userAgent || "");
+  }
+
+  function createShareImageCanvas(result) {
+    const canvas = document.createElement("canvas");
+    const width = 1080;
+    const height = 1800;
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = width;
+    canvas.height = height;
+    drawShareImage(ctx, result, width, height);
+    return canvas;
+  }
+
+  function drawShareImage(ctx, result, width, height) {
+    const primary = result.primary;
+    const teammate = result.teammate;
+    const teammateName = teammate?.type?.name || "暂未生成";
+    const matchText = result.isHidden ? "隐藏" : `${primary.similarity}%`;
+    const bodyFont = "'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif";
+    const cardX = 52;
+    const cardY = 52;
+    const cardWidth = width - cardX * 2;
+    const cardHeight = height - cardY * 2;
+    const contentX = cardX + 56;
+    const contentWidth = cardWidth - 112;
+
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+
+    const background = ctx.createLinearGradient(0, 0, width, height);
+    background.addColorStop(0, "#230811");
+    background.addColorStop(0.46, "#080b12");
+    background.addColorStop(1, "#092048");
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, width, height);
+
+    drawShareGlow(ctx, 160, 160, 320, "rgba(232, 64, 64, 0.34)");
+    drawShareGlow(ctx, 920, 260, 360, "rgba(47, 109, 246, 0.34)");
+    drawShareGlow(ctx, 520, 1240, 430, "rgba(255, 231, 122, 0.15)");
+
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = "#f4ead7";
+    ctx.font = `900 210px ${bodyFont}`;
+    ctx.fillText("DBTI", 474, 1662);
+    ctx.restore();
+
+    fillRoundRect(ctx, cardX, cardY, cardWidth, cardHeight, 42, "rgba(244, 234, 215, 0.085)");
+    strokeRoundRect(ctx, cardX, cardY, cardWidth, cardHeight, 42, "rgba(244, 234, 215, 0.24)", 2);
+
+    let y = cardY + 58;
+    drawSharePill(ctx, contentX, y, "DBTI RESULT", bodyFont, "#ffe77a", "rgba(255, 231, 122, 0.12)");
+    drawSharePill(ctx, contentX + 232, y, result.mode.label, bodyFont, "#f4ead7", "rgba(244, 234, 215, 0.1)");
+
+    y += 78;
+    ctx.fillStyle = "#ffe77a";
+    ctx.font = `700 26px ${bodyFont}`;
+    ctx.fillText("华语辩论人格测试", contentX, y);
+
+    y += 50;
+    drawSharePill(ctx, contentX, y, primary.code, bodyFont, "#ffb0a6", "rgba(232, 64, 64, 0.18)");
+
+    y += 66;
+    ctx.fillStyle = "#f4ead7";
+    ctx.font = `900 82px ${bodyFont}`;
+    y = drawWrappedCanvasText(ctx, primary.name, contentX, y, contentWidth, 86, 2);
+
+    y += 14;
+    ctx.fillStyle = "#ffe77a";
+    ctx.font = `700 35px ${bodyFont}`;
+    y = drawWrappedCanvasText(ctx, primary.tagline, contentX, y, contentWidth, 46, 2);
+
+    y += 30;
+    const statY = y;
+    drawShareMetric(ctx, contentX, statY, 230, 112, "匹配度", matchText, bodyFont);
+    drawShareMetric(ctx, contentX + 254, statY, contentWidth - 254, 112, "最适合的队友", teammateName, bodyFont);
+
+    y += 148;
+    fillRoundRect(ctx, contentX, y, contentWidth, 126, 24, "rgba(0, 0, 0, 0.18)");
+    strokeRoundRect(ctx, contentX, y, contentWidth, 126, 24, "rgba(255, 231, 122, 0.22)", 1);
+    ctx.fillStyle = "rgba(244, 234, 215, 0.82)";
+    ctx.font = `500 28px ${bodyFont}`;
+    drawWrappedCanvasText(
+      ctx,
+      teammate
+        ? `队友推荐：${teammate.reason}`
+        : "队友推荐：当前结果不足以稳定推荐队友。",
+      contentX + 30,
+      y + 24,
+      contentWidth - 60,
+      38,
+      2
+    );
+
+    const radarCenterY = Math.max(y + 330, 1010);
+    const dimensionGridY = radarCenterY + 286;
+    const footerY = dimensionGridY + 310;
+
+    drawShareRadar(ctx, result.displayScores, width / 2, radarCenterY, 176, bodyFont);
+    drawShareDimensionGrid(ctx, result.displayScores, contentX, dimensionGridY, contentWidth, bodyFont);
+
+    ctx.fillStyle = "rgba(244, 234, 215, 0.68)";
+    ctx.font = `500 25px ${bodyFont}`;
+    ctx.fillText("长按保存图片，发朋友圈或发给你的辩论队友。", contentX, footerY);
+    ctx.fillStyle = "#ffe77a";
+    ctx.font = `700 25px ${bodyFont}`;
+    ctx.fillText("DBTI 华语辩论人格测试", contentX, footerY + 44);
+  }
+
+  function drawShareGlow(ctx, x, y, radius, color) {
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawSharePill(ctx, x, y, text, fontFamily, color, background) {
+    ctx.save();
+    ctx.font = `700 24px ${fontFamily}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    const width = Math.ceil(ctx.measureText(text).width) + 42;
+    fillRoundRect(ctx, x, y, width, 46, 23, background);
+    strokeRoundRect(ctx, x, y, width, 46, 23, "rgba(255, 231, 122, 0.34)", 1);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x + 21, y + 23);
+    ctx.restore();
+  }
+
+  function drawShareMetric(ctx, x, y, width, height, label, value, fontFamily) {
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    fillRoundRect(ctx, x, y, width, height, 24, "rgba(244, 234, 215, 0.09)");
+    strokeRoundRect(ctx, x, y, width, height, 24, "rgba(244, 234, 215, 0.18)", 1);
+    ctx.fillStyle = "rgba(174, 184, 198, 0.98)";
+    ctx.font = `500 24px ${fontFamily}`;
+    ctx.fillText(label, x + 26, y + 24);
+    ctx.fillStyle = "#ffe77a";
+    ctx.font = `900 42px ${fontFamily}`;
+    drawWrappedCanvasText(ctx, value, x + 26, y + 58, width - 52, 46, 1);
+    ctx.restore();
+  }
+
+  function drawShareRadar(ctx, displayScores, centerX, centerY, radius, fontFamily) {
+    const dimensions = data.displayDimensions;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(230, 238, 255, 0.2)";
+    ctx.lineWidth = 2;
+
+    for (let ring = 1; ring <= 5; ring += 1) {
+      const ringRadius = (radius / 5) * ring;
+      ctx.beginPath();
+      dimensions.forEach((dimension, index) => {
+        const point = getRadarPoint(index, dimensions.length, centerX, ringRadius, centerY);
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    dimensions.forEach((dimension, index) => {
+      const point = getRadarPoint(index, dimensions.length, centerX, radius, centerY);
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+    });
+
+    const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    gradient.addColorStop(0, "rgba(255, 231, 122, 0.58)");
+    gradient.addColorStop(1, "rgba(232, 64, 64, 0.38)");
+    ctx.beginPath();
+    dimensions.forEach((dimension, index) => {
+      const value = (displayScores[dimension.key] ?? 0) / 100;
+      const point = getRadarPoint(index, dimensions.length, centerX, radius * value, centerY);
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 231, 122, 0.92)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    dimensions.forEach((dimension, index) => {
+      const value = (displayScores[dimension.key] ?? 0) / 100;
+      const point = getRadarPoint(index, dimensions.length, centerX, radius * value, centerY);
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffe77a";
+      ctx.fill();
+    });
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 23px ${fontFamily}`;
+    dimensions.forEach((dimension, index) => {
+      const point = getRadarPoint(index, dimensions.length, centerX, radius + 58, centerY);
+      ctx.fillStyle = "rgba(246, 239, 222, 0.94)";
+      ctx.fillText(dimension.label, point.x, point.y - 14);
+      ctx.fillStyle = "rgba(255, 231, 122, 0.94)";
+      ctx.fillText(String(displayScores[dimension.key] ?? 0), point.x, point.y + 18);
+    });
+    ctx.restore();
+  }
+
+  function drawShareDimensionGrid(ctx, displayScores, x, y, width, fontFamily) {
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    const columns = 2;
+    const gap = 18;
+    const itemWidth = (width - gap) / columns;
+    const itemHeight = 62;
+
+    data.displayDimensions.forEach((dimension, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      const itemX = x + column * (itemWidth + gap);
+      const itemY = y + row * (itemHeight + 14);
+
+      fillRoundRect(ctx, itemX, itemY, itemWidth, itemHeight, 16, "rgba(0, 0, 0, 0.18)");
+      strokeRoundRect(ctx, itemX, itemY, itemWidth, itemHeight, 16, "rgba(244, 234, 215, 0.16)", 1);
+      ctx.fillStyle = "rgba(244, 234, 215, 0.78)";
+      ctx.font = `500 24px ${fontFamily}`;
+      ctx.fillText(dimension.label, itemX + 22, itemY + 20);
+      ctx.fillStyle = "#ffe77a";
+      ctx.font = `900 26px ${fontFamily}`;
+      ctx.textAlign = "right";
+      ctx.fillText(String(displayScores[dimension.key] ?? 0), itemX + itemWidth - 22, itemY + 19);
+      ctx.textAlign = "left";
+    });
+    ctx.restore();
+  }
+
+  function drawWrappedCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = Infinity) {
+    const lines = wrapCanvasText(ctx, text, maxWidth, maxLines);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x, y + index * lineHeight);
+    });
+    return y + lines.length * lineHeight;
+  }
+
+  function wrapCanvasText(ctx, text, maxWidth, maxLines = Infinity) {
+    const paragraphs = String(text ?? "").split(/\n+/).map((part) => part.trim()).filter(Boolean);
+    const lines = [];
+
+    for (const paragraph of paragraphs) {
+      let line = "";
+      const chars = Array.from(paragraph);
+
+      for (let index = 0; index < chars.length; index += 1) {
+        const char = chars[index];
+        const testLine = `${line}${char}`;
+        if (ctx.measureText(testLine).width > maxWidth && line) {
+          lines.push(line);
+          line = char;
+
+          if (lines.length === maxLines) {
+            lines[lines.length - 1] = truncateCanvasLine(ctx, lines[lines.length - 1], maxWidth);
+            return lines;
+          }
+        } else {
+          line = testLine;
+        }
+      }
+
+      if (line) {
+        lines.push(line);
+        if (lines.length === maxLines) {
+          if (paragraphs.indexOf(paragraph) < paragraphs.length - 1) {
+            lines[lines.length - 1] = truncateCanvasLine(ctx, lines[lines.length - 1], maxWidth);
+          }
+          return lines;
+        }
+      }
+    }
+
+    return lines;
+  }
+
+  function truncateCanvasLine(ctx, line, maxWidth) {
+    let nextLine = line;
+    while (nextLine.length > 0 && ctx.measureText(`${nextLine}…`).width > maxWidth) {
+      nextLine = nextLine.slice(0, -1);
+    }
+    return `${nextLine}…`;
+  }
+
+  function fillRoundRect(ctx, x, y, width, height, radius, color) {
+    drawRoundRectPath(ctx, x, y, width, height, radius);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  function strokeRoundRect(ctx, x, y, width, height, radius, color, lineWidth) {
+    drawRoundRectPath(ctx, x, y, width, height, radius);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+
+  function drawRoundRectPath(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function sanitizeFileName(value) {
+    return String(value || "result")
+      .replace(/[\\/:*?"<>|]/g, "")
+      .replace(/\s+/g, "-")
+      .slice(0, 40) || "result";
   }
 
   async function copyShareText() {

@@ -1207,7 +1207,7 @@
   window.DBTI_DATA = {
     config: {
       demoMode: false,
-      assetVersion: "20260416-teammate",
+      assetVersion: "20260416-wechat-share-fit",
       fallbackThreshold: 60
     },
     internalDimensions,

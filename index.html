@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="DBTI 华语辩论人格测试，测出你的辩论人格。">
     <title>DBTI 华语辩论人格测试</title>
-    <link rel="stylesheet" href="styles.css?v=20260416-teammate">
-    <script defer src="data.js?v=20260416-teammate"></script>
-    <script defer src="app.js?v=20260416-teammate"></script>
+    <link rel="stylesheet" href="styles.css?v=20260416-wechat-share-fit">
+    <script defer src="data.js?v=20260416-wechat-share-fit"></script>
+    <script defer src="app.js?v=20260416-wechat-share-fit"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -21,7 +21,7 @@
           <p class="eyebrow">华语辩论人格测试</p>
           <h1 id="start-title">你在赛场上到底是什么东西？</h1>
           <p class="hero-copy">
-            当前提供 37 题人格题和 80 题量表题两种测试模式，用于测出你的华语辩论人格。
+            当前提供 37 题人格题和 80 题量表题两种测试模式，用于测出你的华语辩论人格。 本测试完全不科学，仅供图一乐，切勿当真。
           </p>
           <div class="hero-stats" aria-label="测试规格">
             <div><strong>16</strong><span>内部维度</span></div>
@@ -92,6 +92,7 @@
               <p id="share-text"></p>
             </div>
             <div class="result-actions">
+              <button class="primary-button" id="image-btn" type="button">生成结果图</button>
               <button class="secondary-button" id="copy-btn" type="button">复制分享文案</button>
               <button class="ghost-button" id="restart-btn" type="button">重新测试</button>
             </div>
@@ -100,5 +101,22 @@
       </section>
 
     </main>
+    <div class="share-image-overlay" id="share-image-overlay" hidden>
+      <section class="share-image-dialog" role="dialog" aria-modal="true" aria-labelledby="share-image-title">
+        <div class="share-image-header">
+          <div>
+            <div class="section-label">朋友圈结果图</div>
+            <h2 id="share-image-title">保存这张图再分享</h2>
+          </div>
+          <button class="close-button" id="share-image-close" type="button" aria-label="关闭结果图预览">关闭</button>
+        </div>
+        <p class="share-image-tip">微信里请长按下方图片，选择保存图片后发朋友圈；普通浏览器也可以点保存图片或系统分享。</p>
+        <img class="share-image-preview" id="share-image-preview" alt="DBTI 测试结果分享图">
+        <div class="share-image-actions">
+          <a class="secondary-button" id="download-image-link" href="#" download="dbti-result.png">保存图片</a>
+          <button class="primary-button" id="system-share-btn" type="button">系统分享图片</button>
+        </div>
+      </section>
+    </div>
   </body>
 </html>
